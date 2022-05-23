@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
-import torch
-import torch.nn as nn
-from torch.optim import SGD
-import unittest
 import copy
+import unittest
 
+import torch
+from torch.optim import SGD
+
+from avalanche.models import SimpleCNN, SimpleMLP, as_multitask
 from avalanche.models.dynamic_modules import (
     MultiTaskModule,
     MultiHeadClassifier,
 )
-from avalanche.models import SimpleCNN, SimpleMLP, as_multitask
-from avalanche.training.supervised import Naive
 from avalanche.training.plugins import LwFPlugin, EWCPlugin
-
+from avalanche.training.supervised import Naive
 from tests.unit_tests_utils import common_setups, get_fast_benchmark, get_device
 
 
@@ -79,6 +78,8 @@ class ConversionMethodTests(unittest.TestCase):
         module_singletask.eval()
         module_multitask.eval()
 
+        # disable masking to check output equivalence
+        module_multitask.classifier.masking = False
         out_single_task = module_singletask(test_input)
         out_multi_task = module_multitask(test_input, task_labels=0)
         self.assertTrue(torch.equal(out_single_task, out_multi_task))

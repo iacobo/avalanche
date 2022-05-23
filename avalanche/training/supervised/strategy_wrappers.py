@@ -31,7 +31,7 @@ from avalanche.training.plugins import (
     CoPEPlugin,
     GSS_greedyPlugin,
     LFLPlugin,
-    MASPlugin
+    MASPlugin,
 )
 from avalanche.training.templates.base import BaseTemplate
 from avalanche.training.templates.supervised import SupervisedTemplate
@@ -58,7 +58,7 @@ class Naive(SupervisedTemplate):
         criterion=CrossEntropyLoss(),
         train_mb_size: int = 1,
         train_epochs: int = 1,
-        eval_mb_size: int = None,
+        eval_mb_size: Optional[int] = None,
         device=None,
         plugins: Optional[List[SupervisedPlugin]] = None,
         evaluator: EvaluationPlugin = default_evaluator,
@@ -83,7 +83,7 @@ class Naive(SupervisedTemplate):
             only at the end of the learning experience. Values >0 mean that
             `eval` is called every `eval_every` epochs and at the end of the
             learning experience.
-        :param **base_kwargs: any additional
+        :param base_kwargs: any additional
             :class:`~avalanche.training.BaseTemplate` constructor arguments.
         """
         super().__init__(
@@ -138,7 +138,7 @@ class PNNStrategy(SupervisedTemplate):
             only at the end of the learning experience. Values >0 mean that
             `eval` is called every `eval_every` epochs and at the end of the
             learning experience.
-        :param **base_kwargs: any additional
+        :param base_kwargs: any additional
             :class:`~avalanche.training.BaseTemplate` constructor arguments.
         """
         # Check that the model has the correct architecture.
@@ -176,7 +176,7 @@ class CWRStar(SupervisedTemplate):
         eval_every=-1,
         **base_kwargs
     ):
-        """
+        """Init.
 
         :param model: The model.
         :param optimizer: The optimizer to use.
@@ -195,7 +195,7 @@ class CWRStar(SupervisedTemplate):
             only at the end of the learning experience. Values >0 mean that
             `eval` is called every `eval_every` epochs and at the end of the
             learning experience.
-        :param **base_kwargs: any additional
+        :param \*\*base_kwargs: any additional
             :class:`~avalanche.training.BaseTemplate` constructor arguments.
         """
         cwsp = CWRStarPlugin(model, cwr_layer_name, freeze_remaining_model=True)
@@ -258,7 +258,7 @@ class Replay(SupervisedTemplate):
             only at the end of the learning experience. Values >0 mean that
             `eval` is called every `eval_every` epochs and at the end of the
             learning experience.
-        :param **base_kwargs: any additional
+        :param \*\*base_kwargs: any additional
             :class:`~avalanche.training.BaseTemplate` constructor arguments.
         """
 
@@ -289,12 +289,12 @@ class GenerativeReplay(SupervisedTemplate):
     and Generator as described in https://arxiv.org/abs/1705.08690.
 
     The model parameter should contain the solver. As an optional input
-    a generator can be wrapped in a trainable strategy 
+    a generator can be wrapped in a trainable strategy
     and passed to the generator_strategy parameter. By default a simple VAE will
     be used as generator.
 
     For the case where the Generator is the model itself that is to be trained,
-    please simply add the GenerativeReplayPlugin() when instantiating 
+    please simply add the GenerativeReplayPlugin() when instantiating
     your Generator's strategy.
 
     See GenerativeReplayPlugin for more details.
@@ -319,7 +319,7 @@ class GenerativeReplay(SupervisedTemplate):
         **base_kwargs
     ):
         """
-        Creates an instance of Generative Replay Strategy 
+        Creates an instance of Generative Replay Strategy
         for a solver-generator pair.
 
         :param model: The solver model.
@@ -339,12 +339,12 @@ class GenerativeReplay(SupervisedTemplate):
             learning experience.
         :param generator_strategy: A trainable strategy with a generative model,
             which employs GenerativeReplayPlugin. Defaults to None.
-        :param **base_kwargs: any additional
+        :param \*\*base_kwargs: any additional
             :class:`~avalanche.training.BaseTemplate` constructor arguments.
         """
 
-        # Check if user inputs a generator model 
-        # (which is wrapped in a strategy that can be trained and 
+        # Check if user inputs a generator model
+        # (which is wrapped in a strategy that can be trained and
         # uses the GenerativeReplayPlugin;
         # see 'VAETraining" as an example below.)
         if generator_strategy is not None:
@@ -356,24 +356,34 @@ class GenerativeReplay(SupervisedTemplate):
             # optimzer:
             lr = 0.01
             from torch.optim import Adam
-            optimizer_generator = Adam(filter(
-                lambda p: p.requires_grad, generator.parameters()), lr=lr,
-                 weight_decay=0.0001)
+
+            optimizer_generator = Adam(
+                filter(lambda p: p.requires_grad, generator.parameters()),
+                lr=lr,
+                weight_decay=0.0001,
+            )
             # strategy (with plugin):
             self.generator_strategy = VAETraining(
-                model=generator, 
+                model=generator,
                 optimizer=optimizer_generator,
-                criterion=VAE_loss, train_mb_size=train_mb_size, 
+                criterion=VAE_loss,
+                train_mb_size=train_mb_size,
                 train_epochs=train_epochs,
-                eval_mb_size=eval_mb_size, device=device,
-                plugins=[GenerativeReplayPlugin(
-                    replay_size=replay_size,
-                    increasing_replay_size=increasing_replay_size)])
+                eval_mb_size=eval_mb_size,
+                device=device,
+                plugins=[
+                    GenerativeReplayPlugin(
+                        replay_size=replay_size,
+                        increasing_replay_size=increasing_replay_size,
+                    )
+                ],
+            )
 
         rp = GenerativeReplayPlugin(
             generator_strategy=self.generator_strategy,
             replay_size=replay_size,
-            increasing_replay_size=increasing_replay_size)
+            increasing_replay_size=increasing_replay_size,
+        )
 
         tgp = TrainGeneratorAfterExpPlugin()
 
@@ -406,8 +416,8 @@ class VAETraining(SupervisedTemplate):
     We make use of the SupervisedTemplate, even though technically this is not a
     supervised training. However, this reduces the modification to a minimum.
 
-    We only need to overwrite the criterion function in order to pass all 
-    necessary variables to the VAE loss function. 
+    We only need to overwrite the criterion function in order to pass all
+    necessary variables to the VAE loss function.
     Furthermore we remove all metrics from the evaluator.
     """
 
@@ -424,7 +434,7 @@ class VAETraining(SupervisedTemplate):
         evaluator: EvaluationPlugin = EvaluationPlugin(
             loggers=[InteractiveLogger()],
             suppress_warnings=True,
-            ),
+        ),
         eval_every=-1,
         **base_kwargs
     ):
@@ -446,7 +456,7 @@ class VAETraining(SupervisedTemplate):
             only at the end of the learning experience. Values >0 mean that
             `eval` is called every `eval_every` epochs and at the end of the
             learning experience.
-        :param **base_kwargs: any additional
+        :param \*\*base_kwargs: any additional
             :class:`~avalanche.training.BaseTemplate` constructor arguments.
         """
 
@@ -465,7 +475,7 @@ class VAETraining(SupervisedTemplate):
         )
 
     def criterion(self):
-        """Adapt input to criterion as needed to compute reconstruction loss 
+        """Adapt input to criterion as needed to compute reconstruction loss
         and KL divergence. See default criterion VAELoss."""
         return self._criterion(self.mb_x, self.mb_output)
 
@@ -513,7 +523,7 @@ class GSS_greedy(SupervisedTemplate):
             only at the end of the learning experience. Values >0 mean that
             `eval` is called every `eval_every` epochs and at the end of the
             learning experience.
-        :param **base_kwargs: any additional
+        :param \*\*base_kwargs: any additional
             :class:`~avalanche.training.BaseTemplate` constructor arguments.
         """
         rp = GSS_greedyPlugin(
@@ -578,7 +588,7 @@ class GDumb(SupervisedTemplate):
             only at the end of the learning experience. Values >0 mean that
             `eval` is called every `eval_every` epochs and at the end of the
             learning experience.
-        :param **base_kwargs: any additional
+        :param base_kwargs: any additional
             :class:`~avalanche.training.BaseTemplate` constructor arguments.
         """
 
@@ -646,7 +656,7 @@ class LwF(SupervisedTemplate):
             only at the end of the learning experience. Values >0 mean that
             `eval` is called every `eval_every` epochs and at the end of the
             learning experience.
-        :param **base_kwargs: any additional
+        :param base_kwargs: any additional
             :class:`~avalanche.training.BaseTemplate` constructor arguments.
         """
 
@@ -714,7 +724,7 @@ class AGEM(SupervisedTemplate):
             only at the end of the learning experience. Values >0 mean that
             `eval` is called every `eval_every` epochs and at the end of the
             learning experience.
-        :param **base_kwargs: any additional
+        :param base_kwargs: any additional
             :class:`~avalanche.training.BaseTemplate` constructor arguments.
         """
 
@@ -782,7 +792,7 @@ class GEM(SupervisedTemplate):
             only at the end of the learning experience. Values >0 mean that
             `eval` is called every `eval_every` epochs and at the end of the
             learning experience.
-        :param **base_kwargs: any additional
+        :param base_kwargs: any additional
             :class:`~avalanche.training.BaseTemplate` constructor arguments.
         """
 
@@ -862,7 +872,7 @@ class EWC(SupervisedTemplate):
             only at the end of the learning experience. Values >0 mean that
             `eval` is called every `eval_every` epochs and at the end of the
             learning experience.
-        :param **base_kwargs: any additional
+        :param base_kwargs: any additional
             :class:`~avalanche.training.BaseTemplate` constructor arguments.
         """
         ewc = EWCPlugin(ewc_lambda, mode, decay_factor, keep_importance_data)
@@ -942,7 +952,7 @@ class SynapticIntelligence(SupervisedTemplate):
             only at the end of the learning experience. Values >0 mean that
             `eval` is called every `eval_every` epochs and at the end of the
             learning experience.
-        :param **base_kwargs: any additional
+        :param base_kwargs: any additional
             :class:`~avalanche.training.BaseTemplate` constructor arguments.
         """
         if plugins is None:
@@ -998,15 +1008,15 @@ class CoPE(SupervisedTemplate):
         :param model: The model.
         :param optimizer: The optimizer to use.
         :param criterion: Loss criterion to use. Standard overwritten by
-        PPPloss (see CoPEPlugin).
+            PPPloss (see CoPEPlugin).
         :param mem_size: replay buffer size.
         :param n_classes: total number of classes that will be encountered. This
-        is used to output predictions for all classes, with zero probability
-        for unseen classes.
+            is used to output predictions for all classes, with zero probability
+            for unseen classes.
         :param p_size: The prototype size, which equals the feature size of the
-        last layer.
+            last layer.
         :param alpha: The momentum for the exponentially moving average of the
-        prototypes.
+            prototypes.
         :param T: The softmax temperature, used as a concentration parameter.
         :param train_mb_size: The train minibatch size. Defaults to 1.
         :param train_epochs: The number of training epochs. Defaults to 1.
@@ -1020,7 +1030,7 @@ class CoPE(SupervisedTemplate):
             only at the end of the learning experience. Values >0 mean that
             `eval` is called every `eval_every` epochs and at the end of the
             learning experience.
-        :param **base_kwargs: any additional
+        :param base_kwargs: any additional
             :class:`~avalanche.training.BaseTemplate` constructor arguments.
         """
         copep = CoPEPlugin(mem_size, n_classes, p_size, alpha, T)
@@ -1085,7 +1095,6 @@ class LFL(SupervisedTemplate):
             only at the end of the learning experience. Values >0 mean that
             `eval` is called every `eval_every` epochs and at the end of the
             learning experience.
-        :param **base_kwargs: any additional
             :class:`~avalanche.training.BaseTemplate` constructor arguments.
         """
 
@@ -1122,7 +1131,7 @@ class MAS(SupervisedTemplate):
         model: Module,
         optimizer: Optimizer,
         criterion,
-        lambda_reg: float = 1.,
+        lambda_reg: float = 1.0,
         alpha: float = 0.5,
         verbose: bool = False,
         train_mb_size: int = 1,
@@ -1162,10 +1171,7 @@ class MAS(SupervisedTemplate):
         """
 
         # Instantiate plugin
-        mas = MASPlugin(
-            lambda_reg=lambda_reg,
-            alpha=alpha,
-            verbose=verbose)
+        mas = MASPlugin(lambda_reg=lambda_reg, alpha=alpha, verbose=verbose)
 
         # Add plugin to the strategy
         if plugins is None:
@@ -1204,5 +1210,5 @@ __all__ = [
     "GSS_greedy",
     "CoPE",
     "LFL",
-    "MAS"
+    "MAS",
 ]

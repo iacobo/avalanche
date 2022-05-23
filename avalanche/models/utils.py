@@ -3,6 +3,8 @@ from avalanche.models.dynamic_modules import MultiTaskModule, DynamicModule
 import torch.nn as nn
 from collections import OrderedDict
 
+from avalanche.benchmarks.scenarios import CLExperience
+
 
 def avalanche_forward(model, x, task_labels):
     if isinstance(model, MultiTaskModule):
@@ -11,10 +13,10 @@ def avalanche_forward(model, x, task_labels):
         return model(x)
 
 
-def avalanche_model_adaptation(model: nn.Module, dataset: AvalancheDataset):
+def avalanche_model_adaptation(model: nn.Module, experience: CLExperience):
     for module in model.modules():
         if isinstance(module, DynamicModule):
-            module.adaptation(dataset)
+            module.adaptation(experience)
 
 
 class FeatureExtractorBackbone(nn.Module):
@@ -61,9 +63,9 @@ class FeatureExtractorBackbone(nn.Module):
 
 
 class Flatten(nn.Module):
-    '''
+    """
     Simple nn.Module to flatten each tensor of a batch of tensors.
-    '''
+    """
 
     def __init__(self):
         super(Flatten, self).__init__()
@@ -74,26 +76,27 @@ class Flatten(nn.Module):
 
 
 class MLP(nn.Module):
-    '''
-    Simple nn.Module to create a multi-layer perceptron 
+    """
+    Simple nn.Module to create a multi-layer perceptron
     with BatchNorm and ReLU activations.
 
     :param hidden_size: An array indicating the number of neurons in each layer.
     :type hidden_size: int[]
-    :param last_activation: Indicates whether to add BatchNorm and ReLU 
+    :param last_activation: Indicates whether to add BatchNorm and ReLU
                             after the last layer.
     :type last_activation: Boolean
-    '''
+    """
 
     def __init__(self, hidden_size, last_activation=True):
         super(MLP, self).__init__()
         q = []
-        for i in range(len(hidden_size)-1):
+        for i in range(len(hidden_size) - 1):
             in_dim = hidden_size[i]
-            out_dim = hidden_size[i+1]
+            out_dim = hidden_size[i + 1]
             q.append(("Linear_%d" % i, nn.Linear(in_dim, out_dim)))
-            if (i < len(hidden_size)-2) or ((i == len(hidden_size) - 2)
-                                            and (last_activation)):
+            if (i < len(hidden_size) - 2) or (
+                (i == len(hidden_size) - 2) and (last_activation)
+            ):
                 q.append(("BatchNorm_%d" % i, nn.BatchNorm1d(out_dim)))
                 q.append(("ReLU_%d" % i, nn.ReLU(inplace=True)))
         self.mlp = nn.Sequential(OrderedDict(q))

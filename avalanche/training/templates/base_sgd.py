@@ -1,14 +1,15 @@
-from typing import Sequence, Optional, Union
+from typing import Iterable, Sequence, Optional, Union, List
 
 import torch
 from torch.nn import Module
 from torch.optim import Optimizer
 
-from avalanche.benchmarks import Experience
+from avalanche.benchmarks import CLExperience, CLStream
+from avalanche.core import BaseSGDPlugin
 from avalanche.training.plugins import SupervisedPlugin, EvaluationPlugin
 from avalanche.training.plugins.clock import Clock
 from avalanche.training.plugins.evaluation import default_evaluator
-from avalanche.training.templates.base import BaseTemplate
+from avalanche.training.templates.base import BaseTemplate, ExpSequence
 
 from typing import TYPE_CHECKING
 
@@ -35,15 +36,17 @@ class BaseSGDTemplate(BaseTemplate):
 
     """
 
+    PLUGIN_CLASS = BaseSGDPlugin
+
     def __init__(
         self,
         model: Module,
         optimizer: Optimizer,
         train_mb_size: int = 1,
         train_epochs: int = 1,
-        eval_mb_size: int = 1,
+        eval_mb_size: Optional[int] = 1,
         device="cpu",
-        plugins: Optional[Sequence["SupervisedPlugin"]] = None,
+        plugins: Optional[List["SupervisedPlugin"]] = None,
         evaluator: EvaluationPlugin = default_evaluator,
         eval_every=-1,
         peval_mode="epoch",
@@ -118,19 +121,17 @@ class BaseSGDTemplate(BaseTemplate):
 
         self._stop_training = False
 
-    def train(
-        self,
-        experiences: Union[Experience, Sequence[Experience]],
-        eval_streams: Optional[
-            Sequence[Union[Experience, Sequence[Experience]]]
-        ] = None,
-        **kwargs,
-    ):
+    def train(self,
+              experiences: Union[CLExperience,
+                                 ExpSequence],
+              eval_streams: Optional[Sequence[Union[CLExperience,
+                                                    ExpSequence]]] = None,
+              **kwargs):
         super().train(experiences, eval_streams, **kwargs)
         return self.evaluator.get_last_metrics()
 
     @torch.no_grad()
-    def eval(self, exp_list: Union[Experience, Sequence[Experience]], **kwargs):
+    def eval(self, exp_list: Union[CLExperience, CLStream], **kwargs):
         """
         Evaluate the current model on a series of experiences and
         returns the last recorded value for each metric.
@@ -151,7 +152,9 @@ class BaseSGDTemplate(BaseTemplate):
         self.make_optimizer()
         super()._before_training_exp(**kwargs)
 
-    def _train_exp(self, experience: Experience, eval_streams=None, **kwargs):
+    def _train_exp(
+        self, experience: CLExperience, eval_streams=None, **kwargs
+    ):
         """Training loop over a single Experience object.
 
         :param experience: CL experience information.
@@ -163,7 +166,7 @@ class BaseSGDTemplate(BaseTemplate):
         if eval_streams is None:
             eval_streams = [experience]
         for i, exp in enumerate(eval_streams):
-            if not isinstance(exp, Sequence):
+            if not isinstance(exp, Iterable):
                 eval_streams[i] = [exp]
         for _ in range(self.train_epochs):
             self._before_training_epoch(**kwargs)
@@ -356,7 +359,7 @@ class PeriodicEval(SupervisedPlugin):
         training.
         """
         if self.do_initial:
-            self._peval(strategy)
+            self._peval(strategy, **kwargs)
 
     def before_training_exp(self, strategy, **kwargs):
         # We evaluate at the start of each experience because train_epochs
@@ -378,26 +381,26 @@ class PeriodicEval(SupervisedPlugin):
     def after_training_exp(self, strategy, **kwargs):
         """Final eval after a learning experience."""
         if self.do_final:
-            self._peval(strategy)
+            self._peval(strategy, **kwargs)
 
-    def _peval(self, strategy):
+    def _peval(self, strategy, **kwargs):
         for el in strategy._eval_streams:
-            strategy.eval(el)
+            strategy.eval(el, **kwargs)
 
-    def _maybe_peval(self, strategy, counter):
+    def _maybe_peval(self, strategy, counter, **kwargs):
         if self.eval_every > 0 and counter % self.eval_every == 0:
-            self._peval(strategy)
+            self._peval(strategy, **kwargs)
 
-    def after_training_epoch(self, strategy: "SupervisedTemplate", **kwargs):
+    def after_training_epoch(self, strategy: "BaseSGDTemplate", **kwargs):
         """Periodic eval controlled by `self.eval_every` and
         `self.peval_mode`."""
         if self.peval_mode == "epoch":
-            self._maybe_peval(strategy, strategy.clock.train_exp_epochs)
+            self._maybe_peval(strategy, strategy.clock.train_exp_epochs,
+                              **kwargs)
 
-    def after_training_iteration(
-        self, strategy: "SupervisedTemplate", **kwargs
-    ):
+    def after_training_iteration(self, strategy: "BaseSGDTemplate", **kwargs):
         """Periodic eval controlled by `self.eval_every` and
         `self.peval_mode`."""
         if self.peval_mode == "iteration":
-            self._maybe_peval(strategy, strategy.clock.train_exp_iterations)
+            self._maybe_peval(strategy, strategy.clock.train_exp_iterations,
+                              **kwargs)

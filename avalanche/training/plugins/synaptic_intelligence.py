@@ -19,8 +19,7 @@ SynDataType = Dict[str, Dict[str, Tensor]]
 
 
 class SynapticIntelligencePlugin(SupervisedPlugin):
-    """
-    The Synaptic Intelligence plugin.
+    """Synaptic Intelligence plugin.
 
     This is the Synaptic Intelligence PyTorch implementation of the
     algorithm described in the paper
@@ -46,8 +45,7 @@ class SynapticIntelligencePlugin(SupervisedPlugin):
         excluded_parameters: Sequence["str"] = None,
         device: Any = "as_strategy",
     ):
-        """
-        Creates an instance of the Synaptic Intelligence plugin.
+        """Creates an instance of the Synaptic Intelligence plugin.
 
         :param si_lambda: Synaptic Intelligence lambda term.
             If list, one lambda for each experience. If the list has less
@@ -359,9 +357,9 @@ class SynapticIntelligencePlugin(SupervisedPlugin):
     @staticmethod
     def not_excluded_parameters(
         model: Module, excluded_parameters: Set[str]
-    ) -> List[Tuple[str, Tensor]]:
+    ) -> Sequence[Tuple[str, Tensor]]:
         # Add wildcards ".*" to all excluded parameter names
-        result = []
+        result: List[Tuple[str, Tensor]] = []
         excluded_parameters = (
             SynapticIntelligencePlugin.explode_excluded_parameters(
                 excluded_parameters

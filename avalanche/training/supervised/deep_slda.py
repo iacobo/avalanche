@@ -16,8 +16,7 @@ class StreamingLDA(SupervisedTemplate):
 
     This strategy does not use backpropagation.
     Minibatches are first passed to the pretrained feature extractor.
-    The result is processed one element at a time to fit the
-    LDA.
+    The result is processed one element at a time to fit the LDA.
     Original paper:
     "Hayes et. al., Lifelong Machine Learning with Deep Streaming Linear
     Discriminant Analysis, CVPR Workshop, 2020"
@@ -57,7 +56,7 @@ class StreamingLDA(SupervisedTemplate):
         :param eval_mb_size: batch size for inference
         :param shrinkage_param: value of the shrinkage parameter
         :param streaming_update_sigma: True if sigma is plastic else False
-        feature extraction in `self.feature_extraction_wrapper'
+            feature extraction in `self.feature_extraction_wrapper`.
         :param plugins: list of StrategyPlugins
         :param evaluator: Evaluation Plugin instance
         :param eval_every: run eval every `eval_every` epochs.
@@ -254,6 +253,37 @@ class StreamingLDA(SupervisedTemplate):
         self.cK = d["cK"].to(self.device)
         self.Sigma = d["Sigma"].to(self.device)
         self.num_updates = d["num_updates"]
+
+    def _check_plugin_compatibility(self):
+        """Check that the list of plugins is compatible with the template.
+
+        This means checking that each plugin impements a subset of the
+        supported callbacks.
+        """
+        # TODO: ideally we would like to check the argument's type to check
+        #  that it's a supertype of the template.
+        # I don't know if it's possible to do it in Python.
+        ps = self.plugins
+
+        def get_plugins_from_object(obj):
+            def is_callback(x):
+                return x.startswith("before") or x.startswith("after")
+
+            return filter(is_callback, dir(obj))
+
+        cb_supported = set(get_plugins_from_object(self.PLUGIN_CLASS))
+        cb_supported.remove("before_backward")
+        cb_supported.remove("after_backward")
+        for p in ps:
+            cb_p = set(get_plugins_from_object(p))
+
+            if not cb_p.issubset(cb_supported):
+                warnings.warn(
+                    f"Plugin {p} implements incompatible callbacks for template"
+                    f" {self}. This may result in errors. Incompatible "
+                    f"callbacks: {cb_p - cb_supported}",
+                )
+                return
 
 
 __all__ = ["StreamingLDA"]

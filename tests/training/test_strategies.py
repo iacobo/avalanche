@@ -8,16 +8,16 @@
 # E-mail: contact@continualai.org                                              #
 # Website: avalanche.continualai.org                                           #
 ################################################################################
-import torch
-import unittest
-
 import os
 import sys
+import unittest
 
+import torch
+from torch.nn import CrossEntropyLoss
 from torch.optim import SGD
-from torch.nn import CrossEntropyLoss, Linear
 
-from avalanche.logging import TextLogger
+from avalanche.evaluation.metrics import StreamAccuracy, loss_metrics
+from avalanche.logging import TextLogger, InteractiveLogger
 from avalanche.models import SimpleMLP, IncrementalClassifier, PNN
 from avalanche.training.plugins import (
     EvaluationPlugin,
@@ -25,6 +25,7 @@ from avalanche.training.plugins import (
     LwFPlugin,
     ReplayPlugin,
     RWalkPlugin,
+    EarlyStoppingPlugin,
 )
 from avalanche.training.supervised import (
     Naive,
@@ -42,14 +43,12 @@ from avalanche.training.supervised import (
     StreamingLDA,
     MAS,
 )
-from avalanche.training.templates.supervised import SupervisedTemplate
 from avalanche.training.supervised.cumulative import Cumulative
+from avalanche.training.supervised.icarl import ICaRL
 from avalanche.training.supervised.joint_training import AlreadyTrainedError
 from avalanche.training.supervised.strategy_wrappers import PNNStrategy
-from avalanche.training.supervised.icarl import ICaRL
+from avalanche.training.templates.supervised import SupervisedTemplate
 from avalanche.training.utils import get_last_fc_layer
-from avalanche.evaluation.metrics import StreamAccuracy
-
 from tests.unit_tests_utils import get_fast_benchmark, get_device
 
 
@@ -130,6 +129,31 @@ class BaseStrategyTest(unittest.TestCase):
         strategy.train(benchmark.train_stream[0])
         curve = strategy.evaluator.get_all_metrics()[curve_key][1]
         assert len(curve) == 5
+
+    def test_plugins_compatibility_checks(self):
+        model = SimpleMLP(input_size=6, hidden_size=10)
+        benchmark = get_fast_benchmark()
+        optimizer = SGD(model.parameters(), lr=1e-3)
+        criterion = CrossEntropyLoss()
+
+        evalp = EvaluationPlugin(
+            loss_metrics(
+                minibatch=True, epoch=True, experience=True, stream=True
+            ),
+            loggers=[InteractiveLogger()],
+            strict_checks=None,
+        )
+
+        strategy = Naive(
+            model,
+            optimizer,
+            criterion,
+            train_epochs=2,
+            eval_every=-1,
+            evaluator=evalp,
+            plugins=[EarlyStoppingPlugin(patience=10, val_stream_name="train")],
+        )
+        strategy.train(benchmark.train_stream[0])
 
     def test_forward_hooks(self):
         model = SimpleMLP(input_size=6, hidden_size=10)
@@ -301,6 +325,20 @@ class StrategyTest(unittest.TestCase):
         )
         self.run_strategy(my_nc_benchmark, strategy)
 
+        dict_past_j = {}
+        for cls in range(my_nc_benchmark.n_classes):
+            dict_past_j[cls] = 0
+
+        # Check past_j SIT
+        for exp in my_nc_benchmark.train_stream:
+            for cls in set(exp.dataset.targets):
+                dict_past_j[cls] += exp.dataset.targets.count(cls)
+        for cls in model.past_j.keys():
+            assert model.past_j[cls] == dict_past_j[cls]
+
+        for cls in model.past_j.keys():
+            model.past_j[cls] = 0
+
         # MT scenario
         strategy = CWRStar(
             model,
@@ -311,7 +349,18 @@ class StrategyTest(unittest.TestCase):
             device=self.device,
         )
         benchmark = self.load_benchmark(use_task_labels=True)
-        self.run_strategy(benchmark, strategy)
+        # self.run_strategy(benchmark, strategy)
+
+        # Check past_j MT
+        dict_past_j = {}
+        for cls in range(benchmark.n_classes):
+            dict_past_j[cls] = 0
+
+        for exp in benchmark.train_stream:
+            for cls in set(exp.dataset.targets):
+                dict_past_j[cls] += exp.dataset.targets.count(cls)
+        for cls in model.past_j.keys():
+            assert model.past_j[cls] == dict_past_j[cls]
 
     def test_replay(self):
         # SIT scenario
@@ -755,7 +804,7 @@ class StrategyTest(unittest.TestCase):
             model,
             optimizer,
             criterion,
-            lambda_reg=1.,
+            lambda_reg=1.0,
             alpha=0.5,
             train_mb_size=10,
             device=self.device,
@@ -769,7 +818,7 @@ class StrategyTest(unittest.TestCase):
             model,
             optimizer,
             criterion,
-            lambda_reg=1.,
+            lambda_reg=1.0,
             alpha=0.5,
             train_mb_size=10,
             device=self.device,
