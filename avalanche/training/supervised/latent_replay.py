@@ -220,7 +220,7 @@ class LatentReplay(SupervisedTemplate):
                 self.mb_x, latent_input=lat_mb_x, return_lat_acts=True
             )
 
-            self.mb_output = self.mb_output.to(self.device)
+            self.mb_y = self.mb_y.to(self.device)
 
             if self.clock.train_exp_epochs == 0:
                 # On the first epoch only: store latent activations. Those
