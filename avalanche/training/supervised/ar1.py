@@ -127,9 +127,7 @@ class AR1(SupervisedTemplate):
             # Synaptic Intelligence is not applied to the last fully
             # connected layer (and implicitly to "freeze below" ones.
             plugins.append(
-                SynapticIntelligencePlugin(
-                    ewc_lambda, excluded_parameters=[fc_name]
-                )
+                SynapticIntelligencePlugin(ewc_lambda, excluded_parameters=[fc_name])
             )
 
         self.cwr_plugin = CWRStarPlugin(
@@ -137,9 +135,7 @@ class AR1(SupervisedTemplate):
         )
         plugins.append(self.cwr_plugin)
 
-        optimizer = SGD(
-            model.parameters(), lr=lr, momentum=momentum, weight_decay=l2
-        )
+        optimizer = SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=l2)
 
         if criterion is None:
             criterion = CrossEntropyLoss()
@@ -217,9 +213,7 @@ class AR1(SupervisedTemplate):
             for class_id, count in examples_per_class(self.rm[1]).items():
                 self.model.cur_j[class_id] += count
             self.cwr_plugin.cur_class = [
-                cls
-                for cls in set(self.model.cur_j.keys())
-                if self.model.cur_j[cls] > 0
+                cls for cls in set(self.model.cur_j.keys()) if self.model.cur_j[cls] > 0
             ]
             self.cwr_plugin.reset_weights(self.cwr_plugin.cur_class)
 
@@ -271,15 +265,11 @@ class AR1(SupervisedTemplate):
             self.optimizer.zero_grad()
             if self.clock.train_exp_counter > 0:
                 lat_mb_x = self.rm[0][
-                    mb_it
-                    * self.replay_mb_size : (mb_it + 1)
-                    * self.replay_mb_size
+                    mb_it * self.replay_mb_size : (mb_it + 1) * self.replay_mb_size
                 ]
                 lat_mb_x = lat_mb_x.to(self.device)
                 lat_mb_y = self.rm[1][
-                    mb_it
-                    * self.replay_mb_size : (mb_it + 1)
-                    * self.replay_mb_size
+                    mb_it * self.replay_mb_size : (mb_it + 1) * self.replay_mb_size
                 ]
                 lat_mb_y = lat_mb_y.to(self.device)
                 self.mbatch[1] = torch.cat((self.mb_y, lat_mb_y), 0)
@@ -293,6 +283,8 @@ class AR1(SupervisedTemplate):
             self.mb_output, lat_acts = self.model(
                 self.mb_x, latent_input=lat_mb_x, return_lat_acts=True
             )
+
+            self.mb_output = self.mb_output.to(self.device)
 
             if self.clock.train_exp_epochs == 0:
                 # On the first epoch only: store latent activations. Those
@@ -321,15 +313,12 @@ class AR1(SupervisedTemplate):
 
     def _after_training_exp(self, **kwargs):
         h = min(
-            self.rm_sz // (self.clock.train_exp_counter + 1),
-            self.cur_acts.size(0),
+            self.rm_sz // (self.clock.train_exp_counter + 1), self.cur_acts.size(0),
         )
 
         curr_data = self.experience.dataset
         idxs_cur = torch.randperm(self.cur_acts.size(0))[:h]
-        rm_add_y = torch.tensor(
-            [curr_data.targets[idx_cur] for idx_cur in idxs_cur]
-        )
+        rm_add_y = torch.tensor([curr_data.targets[idx_cur] for idx_cur in idxs_cur])
 
         rm_add = [self.cur_acts[idxs_cur], rm_add_y]
 
