@@ -284,8 +284,6 @@ class AR1(SupervisedTemplate):
                 self.mb_x, latent_input=lat_mb_x, return_lat_acts=True
             )
 
-            self.mb_y = self.mb_y.to(self.device)
-
             if self.clock.train_exp_epochs == 0:
                 # On the first epoch only: store latent activations. Those
                 # activations will be used to update the replay buffer.
@@ -299,7 +297,8 @@ class AR1(SupervisedTemplate):
             # Loss & Backward
             # We don't need to handle latent replay, as self.mb_y already
             # contains both current and replay labels.
-            self.loss = self._criterion(self.mb_output, self.mb_y)
+            mb_y = self.mb_y.to(self.device)
+            self.loss = self._criterion(self.mb_output, mb_y)
             self._before_backward(**kwargs)
             self.loss.backward()
             self._after_backward(**kwargs)
