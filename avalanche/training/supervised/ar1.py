@@ -297,8 +297,7 @@ class AR1(SupervisedTemplate):
             # Loss & Backward
             # We don't need to handle latent replay, as self.mb_y already
             # contains both current and replay labels.
-            mb_y = self.mb_y.to(self.device)
-            self.loss = self._criterion(self.mb_output, mb_y)
+            self.loss = self._criterion(self.mb_output, self.mb_y)
             self._before_backward(**kwargs)
             self.loss.backward()
             self._after_backward(**kwargs)
